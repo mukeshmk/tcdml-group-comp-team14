@@ -3,43 +3,58 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 from sklearn import preprocessing as pp
-from sklearn.ensemble import RandomForestRegressor as rfr
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 
 
 # reading data and handling unknowns
 def openAndHandleUnknowns(fileName):
     return pd.read_csv(fileName, na_values={
-        'Year of Record': [0, '#N/A', 'unknown'],
-        'Gender': [0, '#N/A', 'unknown'],
-        'Age': [0, '#N/A', 'unknown'],
-        'Country': ['#N/A', 'unknown'],
-        'Size of City': ['#N/A', 'unknown'],
-        'Profession': ['#N/A'],
-        'University Degree': [0, '#N/A', 'unknown'],
-        'Wears Glasses': ['#N/A', 'unknown'],
-        'Hair Color': [0, '#N/A', 'Unknown'],
-        'Body Height [cm]': ['#N/A', 'unknown'],
-        'Income in EUR': []
-    })
+        'Year of Record': [0, '#N/A', 'na', 'nA', 'NA', 'unknown', '#NUM!', ''],
+        'Gender': [0, '#N/A', 'na', 'nA', 'NA', 'unknown'],
+        'Age': [0, '#N/A', 'na', 'nA', 'NA', 'unknown'],
+        'Country': ['#N/A', 'na', 'nA', 'NA', 'unknown'],
+        'Size of City': ['#N/A', 'na', 'nA', 'NA', 'unknown'],
+        'Profession': ['#N/A', 'na', 'nA', 'NA', 'unknown'],
+        'University Degree': [0, '#N/A', 'na', 'nA', 'NA', 'unknown'],
+        'Wears Glasses': ['#N/A', 'na', 'nA', 'NA', 'unknown'],
+        'Hair Color': [0, '#N/A', 'na', 'nA', 'NA', 'unknown'],
+        'Body Height [cm]': ['#N/A', 'na', 'nA', 'NA', 'unknown'],
+
+        'Housing Situation': [0, '#N/A', 'na', 'nA', 'NA', 'unknown'],
+        'Crime Level in the City of Employement': ['na', 'nA', '#N/A', 'NA'],
+        'Work Experience in Current Job [years]': ['#NUM!', 'na', '#N/A', 'NA', 'nA'],
+        'Satisfation with employer': ['#N/A', 'na', 'nA', 'NA', 'unknown'],
+        'Yearly Income in addition to Salary (e.g. Rental Income)': [],
+        'Total Yearly Income [EUR]': []
+    }, low_memory=False)
 
 
 # handling NaN
 # TODO try different methods of interpolate to reduce RMSE
 # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.interpolate.html#pandas.DataFrame.interpolate
 def dfFillNaN(df):
-    df['Year of Record'] = np.floor(df['Year of Record'].interpolate(method='slinear'))
-    df['Gender'].fillna('other', inplace=True)
+    # TODO check why interpolate on 'Year of Record' is working?
+    # df['Year of Record'] = np.floor(df['Year of Record'].interpolate(method='slinear'))
     df['Age'] = np.floor(df['Age'].interpolate(method='slinear'))
-    # different methods of fillna?
+    df['Crime Level in the City of Employement'] = np.floor(df['Crime Level in the City of Employement'].interpolate(method='slinear'))
+    df['Work Experience in Current Job [years]'] = np.floor(df['Work Experience in Current Job [years]'].interpolate(method='slinear'))
+    # different methods of fillna for categorical values?
+    df['Gender'].fillna('other', inplace=True)
     df['Profession'].fillna(method='ffill', inplace=True)
     df['University Degree'].fillna(method='ffill', inplace=True)
     df['Hair Color'].fillna(method='ffill', inplace=True)
+    df['Housing Situation'].fillna(method='ffill', inplace=True)
+    df['Satisfation with employer'].fillna(method='ffill', inplace=True)
+    df['Year of Record'].fillna(method='ffill', inplace=True)
+
+    df['Yearly Income in addition to Salary (e.g. Rental Income)'] = \
+        df['Yearly Income in addition to Salary (e.g. Rental Income)'].map(lambda x: x.lstrip('+-').rstrip(' EUR'))
+    df['Gender'].replace(to_replace='f', value='female', inplace=True)
     return df
 
 
-# Removing outliers using z-score
 def dropNumericalOutliers(df, z_thresh=3):
     # Constrains will contain `True` or `False` depending on if it is a value below the threshold.
     constrains = df.select_dtypes(include=[np.number]) \
@@ -105,21 +120,26 @@ def target_encode(trn_series=None, tst_series=None, target=None, min_samples_lea
     return add_noise(ft_trn_series, noise_level), add_noise(ft_tst_series, noise_level)
 
 
-df = openAndHandleUnknowns('tcd ml 2019-20 income prediction training (with labels).csv')
-sub_df = openAndHandleUnknowns('tcd ml 2019-20 income prediction test (without labels).csv')
+df = openAndHandleUnknowns('tcd-ml-1920-group-income-train.csv')
+sub_df = openAndHandleUnknowns('tcd-ml-1920-group-income-test.csv')
 
 df = dfFillNaN(df)
 sub_df = dfFillNaN(sub_df)
 
-df['Income in EUR'] = df['Income in EUR'].abs()
-y = df['Income in EUR']
+# df = dropNumericalOutliers(df)
+
+df['Total Yearly Income [EUR]'] = df['Total Yearly Income [EUR]'].abs()
+y = df['Total Yearly Income [EUR]']
 instance = pd.DataFrame(sub_df['Instance'], columns=['Instance'])
 
 # features being considered for linear regression
-features = ['Year of Record', 'Gender', 'Age', 'University Degree', 'Wears Glasses', 'Hair Color',
-            'Body Height [cm]', 'Country', 'Size of City', 'Profession']
+features = ['Year of Record', 'Housing Situation', 'Crime Level in the City of Employement',
+            'Work Experience in Current Job [years]', 'Satisfation with employer',
+            'Gender', 'Age', 'University Degree', 'Wears Glasses', 'Hair Color',
+            'Body Height [cm]', 'Country', 'Size of City', 'Profession',
+            'Yearly Income in addition to Salary (e.g. Rental Income)']
 
-df = df[features + ['Income in EUR']]
+df = df[features + ['Total Yearly Income [EUR]']]
 sub_df = sub_df[features]
 
 # Feature modifications
@@ -140,6 +160,11 @@ df['Gender'], sub_df['Gender'] = target_encode(df['Gender'], sub_df['Gender'], y
 df['University Degree'], sub_df['University Degree'] = target_encode(df['University Degree'], sub_df['University Degree'], y)
 
 df['Hair Color'], sub_df['Hair Color'] = target_encode(df['Hair Color'], sub_df['Hair Color'], y)
+
+df['Housing Situation'], sub_df['Housing Situation'] = target_encode(df['Housing Situation'], sub_df['Housing Situation'], y)
+
+df['Satisfation with employer'], sub_df['Satisfation with employer'] = \
+    target_encode(df['Satisfation with employer'], sub_df['Satisfation with employer'], y)
 
 # replacing the a small number of least count group values to a common feature 'other'
 countryList = df['Country'].unique()
@@ -169,19 +194,28 @@ sub_df['Profession'] = sub_df['Profession'].replace(testProfessionReplace, 'othe
 
 df['Profession'], sub_df['Profession'] = target_encode(df['Profession'], sub_df['Profession'], y)
 
-del df['Income in EUR']
+del df['Total Yearly Income [EUR]']
+
+# TODO remove this!
+df.to_csv('temp.csv', index=False)
+df = pd.read_csv('temp.csv')
+os.remove('temp.csv')
+
+print('Training Model!!')
 X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, random_state=0)
 
-model = rfr(n_estimators=1000)
+model = RandomForestRegressor(n_estimators=100)
 model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 
+print("MAE: %.2f" % mean_absolute_error(y_test, y_pred))
 print("RMSE: %.2f" % np.sqrt(mean_squared_error(y_test, y_pred)))
 print('Variance score: %.2f' % r2_score(y_test, y_pred))
 
 ##################################################################################################################
+print('\n\nPredicting the output!')
 y_sub = model.predict(sub_df)
-income = pd.DataFrame(y_sub, columns=['Income'])
+income = pd.DataFrame(y_sub, columns=['Total Yearly Income [EUR]'])
 ans = instance.join(income)
 
 ans.to_csv('kaggle-output.csv', index=False)
