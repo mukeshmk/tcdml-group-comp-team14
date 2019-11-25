@@ -1,4 +1,3 @@
-import os
 import pandas as pd
 import numpy as np
 from scipy import stats
@@ -15,13 +14,13 @@ def openAndHandleUnknowns(fileName):
         'Year of Record': [0, '#N/A', 'na', 'nA', 'NA', 'unknown', '#NUM!', ''],
         'Gender': [0, '#N/A', 'na', 'nA', 'NA', 'unknown'],
         'Age': [0, '#N/A', 'na', 'nA', 'NA', 'unknown'],
-        'Country': ['#N/A', 'na', 'nA', 'NA', 'unknown'],
+        'Country': ['#N/A', 'na', 'nA', 'NA', 'unknown', '0'],
         'Size of City': ['#N/A', 'na', 'nA', 'NA', 'unknown'],
         'Profession': ['#N/A', 'na', 'nA', 'NA', 'unknown'],
         'University Degree': [0, '#N/A', 'na', 'nA', 'NA', 'unknown'],
         'Wears Glasses': ['#N/A', 'na', 'nA', 'NA', 'unknown'],
         'Hair Color': [0, '#N/A', 'na', 'nA', 'NA', 'unknown'],
-        'Body Height [cm]': ['#N/A', 'na', 'nA', 'NA', 'unknown'],
+        'Body Height [cm]': ['#N/A', 'na', 'nA', 'NA', 'unknown', 0],
 
         'Housing Situation': [0, '#N/A', 'na', 'nA', 'NA', 'unknown'],
         'Crime Level in the City of Employement': ['na', 'nA', '#N/A', 'NA'],
@@ -45,7 +44,9 @@ def dfFillNaN(data):
     data['Gender'].fillna('other', inplace=True)
     data['Profession'].fillna(method='ffill', inplace=True)
     data['University Degree'].fillna(method='ffill', inplace=True)
+    data['Country'].fillna(method='ffill', inplace=True)
     data['Hair Color'].fillna(method='ffill', inplace=True)
+    data['Housing Situation'].fillna(method='bfill', inplace=True)
     data['Housing Situation'].fillna(method='ffill', inplace=True)
     data['Satisfation with employer'].fillna(method='ffill', inplace=True)
     data['Year of Record'].fillna(method='ffill', inplace=True)
@@ -142,12 +143,14 @@ df.drop_duplicates(inplace=True)
 # removing income outliers and negative valued income.
 df = removeIncomeRows(df)
 
+df.isnull().sum(axis=0)
+
 print('filling NaN values...')
 df = dfFillNaN(df)
 sub_df = dfFillNaN(sub_df)
 
 # applying log transform on 'Total Yearly Income [EUR]'
-df['Total Yearly Income [EUR]'] = np.log(df['Total Yearly Income [EUR]'].abs())
+df['Total Yearly Income [EUR]'] = np.log(df['Total Yearly Income [EUR]'])
 
 y = df['Total Yearly Income [EUR]']
 instance = pd.DataFrame(sub_df['Instance'], columns=['Instance'])
@@ -249,4 +252,5 @@ y_sub = np.exp(y_sub)
 income = pd.DataFrame(y_sub, columns=['Total Yearly Income [EUR]'])
 ans = instance.join(income)
 
+print('creating final csv...')
 ans.to_csv('kaggle-output.csv', index=False)
