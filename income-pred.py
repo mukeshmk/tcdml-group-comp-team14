@@ -30,23 +30,10 @@ def openAndHandleUnknowns(fileName):
 
 # handling NaN
 def dfFillNaN(data):
-    # TODO check why interpolate on 'Year of Record' is working?
-    # df['Year of Record'] = np.floor(df['Year of Record'].interpolate(method='slinear'))
-    data['Age'] = np.floor(data['Age'].interpolate(method='slinear'))
-    data['Crime Level in the City of Employement'] = np.floor(
-        data['Crime Level in the City of Employement'].interpolate(method='slinear'))
-    data['Work Experience in Current Job [years]'] = np.floor(
-        data['Work Experience in Current Job [years]'].interpolate(method='slinear'))
-    # different methods of fillna for categorical values?
-    data['Gender'].fillna('other', inplace=True)
-    data['Profession'].fillna(method='ffill', inplace=True)
-    data['University Degree'].fillna(method='ffill', inplace=True)
-    data['Country'].fillna(method='ffill', inplace=True)
-    data['Hair Color'].fillna(method='ffill', inplace=True)
-    data['Housing Situation'].fillna(method='bfill', inplace=True)
-    data['Housing Situation'].fillna(method='ffill', inplace=True)
-    data['Satisfation with employer'].fillna(method='ffill', inplace=True)
-    data['Year of Record'].fillna(method='ffill', inplace=True)
+    data['Age'].fillna(data['Age'].mean(), inplace=True)
+    data['Crime Level in the City of Employement'].fillna(data['Crime Level in the City of Employement'].mean(), inplace=True)
+    data['Work Experience in Current Job [years]'].fillna(data['Work Experience in Current Job [years]'].mean(), inplace=True)
+    data['Year of Record'].fillna(data['Year of Record'].mean(), inplace=True)
 
     data['Yearly Income in addition to Salary (e.g. Rental Income)'] = \
         data['Yearly Income in addition to Salary (e.g. Rental Income)'].str.split(' ').str[0]. \
@@ -55,125 +42,63 @@ def dfFillNaN(data):
     return data
 
 
-def removeIncomeRows(data):
-    outlierInc = detectOutlier(data['Total Yearly Income [EUR]'])
-    data = data[~data["Total Yearly Income [EUR]"].isin(outlierInc)]
+# encoding the dataset using target encoding
+def targetEncoding(train_df, target_variable, cat_cols, alpha):
+    te_train = train_df.copy()
+    globalmean = train_df[target_variable].mean()
+    cat_map = dict()
+    def_map = dict()
 
-    data = data[(data['Total Yearly Income [EUR]'] >= 0)]
-    return data
+    for col in cat_cols:
+        cat_count = train_df.groupby(col).size()
+        target_cat_mean = train_df.groupby(col)[target_variable].mean()
+        reg_smooth_val = ((target_cat_mean * cat_count) + (globalmean * alpha)) / (cat_count + alpha)
 
+        te_train.loc[:, col] = te_train[col].map(reg_smooth_val)
+        te_train[col].fillna(globalmean, inplace=True)
 
-def detectOutlier(data):
-    threshold = 3
-    mean_1 = np.mean(data)
-    std_1 = np.std(data)
-    outliers = []
-    for y in data:
-        z_score = (y - mean_1) / std_1
-        if np.abs(z_score) > threshold:
-            outliers.append(y)
-    return outliers
-
-
-# One Hot Encoding
-def oheFeature(feature, encoder, data, df):
-    ohedf = pd.DataFrame(data, columns=[feature + ': ' + str(i.strip('x0123_')) for i in encoder.get_feature_names()])
-    ohedf.drop(ohedf.columns[len(ohedf.columns) - 1], axis=1, inplace=True)
-    df = pd.concat([df, ohedf], axis=1)
-    del df[feature]
-    return df
-
-
-def add_noise(series, noise_level):
-    return series * (1 + noise_level * np.random.randn(len(series)))
-
-
-def target_encode(trn_series=None, tst_series=None, target=None, min_samples_leaf=1, smoothing=1, noise_level=0):
-    temp = pd.concat([trn_series, target], axis=1)
-    # Compute target mean
-    averages = temp.groupby(by=trn_series.name)[target.name].agg(["mean", "count"])
-    # Compute smoothing
-    smoothing = 1 / (1 + np.exp(-(averages["count"] - min_samples_leaf) / smoothing))
-    # Apply average function to all target data
-    prior = target.mean()
-    # The bigger the count the less full_avg is taken into account
-    averages[target.name] = prior * (1 - smoothing) + averages["mean"] * smoothing
-    averages.drop(["mean", "count"], axis=1, inplace=True)
-    # Apply aver
-    assert len(trn_series) == len(target)
-    assert trn_series.name == tst_series.name
-    temp = pd.concat([trn_series, target], axis=1)
-    # Compute target mean
-    averages = temp.groupby(by=trn_series.name)[target.name].agg(["mean", "count"])
-    # Compute smoothing
-    smoothing = 1 / (1 + np.exp(-(averages["count"] - min_samples_leaf) / smoothing))
-    # Apply average function to all target data
-    prior = target.mean()
-    # The bigger the count the less full_avg is taken into account
-    averages[target.name] = prior * (1 - smoothing) + averages["mean"] * smoothing
-    averages.drop(["mean", "count"], axis=1, inplace=True)
-    # Apply averages to trn and tst series
-    ft_trn_series = pd.merge(
-        trn_series.to_frame(trn_series.name),
-        averages.reset_index().rename(columns={'index': target.name, target.name: 'average'}),
-        on=trn_series.name,
-        how='left')['average'].rename(trn_series.name + '_mean').fillna(prior)
-    # pd.merge does not keep the index so restore it
-    ft_trn_series.index = trn_series.index
-    ft_tst_series = pd.merge(
-        tst_series.to_frame(tst_series.name),
-        averages.reset_index().rename(columns={'index': target.name, target.name: 'average'}),
-        on=tst_series.name,
-        how='left')['average'].rename(trn_series.name + '_mean').fillna(prior)
-    # pd.merge does not keep the index so restore it
-    ft_tst_series.index = tst_series.index
-    return add_noise(ft_trn_series, noise_level), add_noise(ft_tst_series, noise_level)
+        cat_map[col] = reg_smooth_val
+        def_map[col] = globalmean
+    return te_train, cat_map, def_map
 
 
 print('loading data...')
 df = openAndHandleUnknowns('tcd-ml-1920-group-income-train.csv')
 sub_df = openAndHandleUnknowns('tcd-ml-1920-group-income-test.csv')
 
-print('initial preprocessing...')
-# dropping duplicate columns
+print('removing duplicates...')
 df.drop_duplicates(inplace=True)
-# removing income outliers and negative valued income.
-# df = removeIncomeRows(df)
-
-df.isnull().sum(axis=0)
 
 print('filling NaN values...')
 df = dfFillNaN(df)
 sub_df = dfFillNaN(sub_df)
 
-# applying log transform on 'Total Yearly Income [EUR]'
-# df['Total Yearly Income [EUR]'] = np.log(df['Total Yearly Income [EUR]'])
-
 y = df['Total Yearly Income [EUR]']
 instance = pd.DataFrame(sub_df['Instance'], columns=['Instance'])
 
-# features being considered for linear regression
+# features being considered for prediction
 features = ['Year of Record', 'Housing Situation', 'Crime Level in the City of Employement',
             'Work Experience in Current Job [years]', 'Satisfation with employer',
             'Gender', 'Age', 'University Degree', 'Country', 'Size of City', 'Profession',
             # 'Wears Glasses', 'Hair Color', 'Body Height [cm]',
             'Yearly Income in addition to Salary (e.g. Rental Income)']
 
-df = df[features]
+categorical_columns = ['Housing Situation', 'Satisfation with employer', 'Gender', 'Country', 'Profession',
+                       'University Degree']
+
+df = df[features + ['Total Yearly Income [EUR]']]
 sub_df = sub_df[features]
 
 # Feature modifications
 # Target Encoding
-df['Gender'], sub_df['Gender'] = target_encode(df['Gender'], sub_df['Gender'], y)
-df['University Degree'], sub_df['University Degree'] = target_encode(df['University Degree'],
-                                                                     sub_df['University Degree'], y)
-df['Housing Situation'], sub_df['Housing Situation'] = target_encode(df['Housing Situation'],
-                                                                     sub_df['Housing Situation'], y)
-df['Satisfation with employer'], sub_df['Satisfation with employer'] = \
-    target_encode(df['Satisfation with employer'], sub_df['Satisfation with employer'], y)
-df['Country'], sub_df['Country'] = target_encode(df['Country'], sub_df['Country'], y)
-df['Profession'], sub_df['Profession'] = target_encode(df['Profession'], sub_df['Profession'], y)
+df, target_mapping, default_mapping = targetEncoding(df, 'Total Yearly Income [EUR]', categorical_columns, 10)
+for column in categorical_columns:
+    sub_df.loc[:, column] = sub_df[column].map(target_mapping[column])
+    sub_df[column].fillna(default_mapping[column], inplace=True)
 
+
+# removing income column
+df = df[features]
 print('Training Model!!')
 X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, random_state=0)
 
@@ -192,23 +117,16 @@ model = lgb.train(params=params, train_set=train_data, num_boost_round=100000, v
 print('predicting Y...')
 y_pred = model.predict(X_test)
 
-# applying inverse log transform to get the actual values
-# y_pred = np.exp(y_pred)
-# y_test = np.exp(y_test)
-
 print("MAE: %.2f" % mean_absolute_error(y_test, y_pred))
 print("RMSE: %.2f" % np.sqrt(mean_squared_error(y_test, y_pred)))
 print('Variance score: %.2f' % r2_score(y_test, y_pred))
 
 ##################################################################################################################
-print('\n\nPredicting the output!')
+print('\nPredicting the output!')
 y_sub = model.predict(sub_df)
 
-# applying inverse log transform to get the actual values
-# y_sub = np.exp(y_sub)
-
+print('creating final csv...')
 income = pd.DataFrame(y_sub, columns=['Total Yearly Income [EUR]'])
 ans = instance.join(income)
 
-print('creating final csv...')
 ans.to_csv('kaggle-output.csv', index=False)
