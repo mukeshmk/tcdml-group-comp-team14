@@ -74,7 +74,7 @@ df = dfFillNaN(df)
 sub_df = dfFillNaN(sub_df)
 
 # applying log transform on y
-df['Total Yearly Income [EUR]'] = np.log(df['Total Yearly Income [EUR]'])
+df['Total Yearly Income [EUR]'] = df['Total Yearly Income [EUR]']
 
 y = df['Total Yearly Income [EUR]']
 instance = pd.DataFrame(sub_df['Instance'], columns=['Instance'])
@@ -111,6 +111,9 @@ params['boosting_type'] = 'gbdt'
 params['metric'] = 'mae'
 params['max_depth'] = 30
 params['verbosity'] = -1
+params['objective'] = 'tweedie'
+params['num_threads'] = 4
+params['feature_fraction'] = 0.8
 
 train_data = lgb.Dataset(X_train, label=y_train)
 test_data = lgb.Dataset(X_test, label=y_test)
@@ -120,10 +123,6 @@ model = lgb.train(params=params, train_set=train_data, num_boost_round=100000, v
 print('predicting Y...')
 y_pred = model.predict(X_test)
 
-# applying inverse power transform
-y_pred = np.exp(y_pred)
-y_test = np.exp(y_test)
-
 print("MAE: %.2f" % mean_absolute_error(y_test, y_pred))
 print("RMSE: %.2f" % np.sqrt(mean_squared_error(y_test, y_pred)))
 print('Variance score: %.2f' % r2_score(y_test, y_pred))
@@ -131,9 +130,6 @@ print('Variance score: %.2f' % r2_score(y_test, y_pred))
 ##################################################################################################################
 print('\nPredicting the output!')
 y_sub = model.predict(sub_df)
-
-# applying inverse power transform
-y_sub = np.exp(y_sub)
 
 print('creating final csv...')
 income = pd.DataFrame(y_sub, columns=['Total Yearly Income [EUR]'])
