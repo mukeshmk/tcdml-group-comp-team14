@@ -1,8 +1,5 @@
 import pandas as pd
 import numpy as np
-from scipy import stats
-from sklearn import preprocessing as pp
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import lightgbm as lgb
@@ -141,7 +138,7 @@ print('initial preprocessing...')
 # dropping duplicate columns
 df.drop_duplicates(inplace=True)
 # removing income outliers and negative valued income.
-df = removeIncomeRows(df)
+# df = removeIncomeRows(df)
 
 df.isnull().sum(axis=0)
 
@@ -150,7 +147,7 @@ df = dfFillNaN(df)
 sub_df = dfFillNaN(sub_df)
 
 # applying log transform on 'Total Yearly Income [EUR]'
-df['Total Yearly Income [EUR]'] = np.log(df['Total Yearly Income [EUR]'])
+# df['Total Yearly Income [EUR]'] = np.log(df['Total Yearly Income [EUR]'])
 
 y = df['Total Yearly Income [EUR]']
 instance = pd.DataFrame(sub_df['Instance'], columns=['Instance'])
@@ -166,54 +163,15 @@ df = df[features]
 sub_df = sub_df[features]
 
 # Feature modifications
-# Standard Scaling
-print('Normalizing data...')
-yor_scalar = pp.StandardScaler()
-df['Year of Record'] = yor_scalar.fit_transform(df['Year of Record'].values.reshape(-1, 1))
-sub_df['Year of Record'] = yor_scalar.transform(sub_df['Year of Record'].values.reshape(-1, 1))
-
-age_scalar = pp.StandardScaler()
-df['Age'] = age_scalar.fit_transform(df['Age'].values.reshape(-1, 1))
-sub_df['Age'] = age_scalar.transform(sub_df['Age'].values.reshape(-1, 1))
-
 # Target Encoding
 df['Gender'], sub_df['Gender'] = target_encode(df['Gender'], sub_df['Gender'], y)
-
 df['University Degree'], sub_df['University Degree'] = target_encode(df['University Degree'],
                                                                      sub_df['University Degree'], y)
-# df['Hair Color'], sub_df['Hair Color'] = target_encode(df['Hair Color'], sub_df['Hair Color'], y)
-
 df['Housing Situation'], sub_df['Housing Situation'] = target_encode(df['Housing Situation'],
                                                                      sub_df['Housing Situation'], y)
 df['Satisfation with employer'], sub_df['Satisfation with employer'] = \
     target_encode(df['Satisfation with employer'], sub_df['Satisfation with employer'], y)
-
-# replacing the a small number of least count group values to a common feature 'other'
-countryList = df['Country'].unique()
-countryReplaced = df.groupby('Country').count()
-countryReplaced = countryReplaced[countryReplaced['Age'] < 3].index
-df['Country'].replace(countryReplaced, 'other', inplace=True)
-
-# Handling the 'other' encoding in Country Feature
-testCountryList = sub_df['Country'].unique()
-encodedCountries = list(set(countryList) - set(countryReplaced))
-testCountryReplace = list(set(testCountryList) - set(encodedCountries))
-sub_df['Country'] = sub_df['Country'].replace(testCountryReplace, 'other')
-
 df['Country'], sub_df['Country'] = target_encode(df['Country'], sub_df['Country'], y)
-
-# replacing the a small number of least count group values to a common feature 'other profession'
-professionList = df['Profession'].unique()
-professionReplaced = df.groupby('Profession').count()
-professionReplaced = professionReplaced[professionReplaced['Age'] < 3].index
-df['Profession'].replace(professionReplaced, 'other profession', inplace=True)
-
-# Handling the 'other profession' encoding in Profession Feature
-testProfessionList = sub_df['Profession'].unique()
-encodedProfession = list(set(professionList) - set(professionReplaced))
-testProfessionReplace = list(set(testProfessionList) - set(encodedProfession))
-sub_df['Profession'] = sub_df['Profession'].replace(testProfessionReplace, 'other profession')
-
 df['Profession'], sub_df['Profession'] = target_encode(df['Profession'], sub_df['Profession'], y)
 
 print('Training Model!!')
@@ -235,8 +193,8 @@ print('predicting Y...')
 y_pred = model.predict(X_test)
 
 # applying inverse log transform to get the actual values
-y_pred = np.exp(y_pred)
-y_test = np.exp(y_test)
+# y_pred = np.exp(y_pred)
+# y_test = np.exp(y_test)
 
 print("MAE: %.2f" % mean_absolute_error(y_test, y_pred))
 print("RMSE: %.2f" % np.sqrt(mean_squared_error(y_test, y_pred)))
@@ -247,7 +205,7 @@ print('\n\nPredicting the output!')
 y_sub = model.predict(sub_df)
 
 # applying inverse log transform to get the actual values
-y_sub = np.exp(y_sub)
+# y_sub = np.exp(y_sub)
 
 income = pd.DataFrame(y_sub, columns=['Total Yearly Income [EUR]'])
 ans = instance.join(income)
