@@ -43,7 +43,7 @@ def dfFillNaN(data):
 
 
 # encoding the dataset using target encoding
-def targetEncoding(train_df, target_variable, cat_cols, alpha):
+def target_encode(train_df, target_variable, cat_cols, alpha):
     te_train = train_df.copy()
     globalmean = train_df[target_variable].mean()
     cat_map = dict()
@@ -73,6 +73,9 @@ print('filling NaN values...')
 df = dfFillNaN(df)
 sub_df = dfFillNaN(sub_df)
 
+# applying log transform on y
+df['Total Yearly Income [EUR]'] = np.log(df['Total Yearly Income [EUR]'])
+
 y = df['Total Yearly Income [EUR]']
 instance = pd.DataFrame(sub_df['Instance'], columns=['Instance'])
 
@@ -91,7 +94,7 @@ sub_df = sub_df[features]
 
 # Feature modifications
 # Target Encoding
-df, target_mapping, default_mapping = targetEncoding(df, 'Total Yearly Income [EUR]', categorical_columns, 10)
+df, target_mapping, default_mapping = target_encode(df, 'Total Yearly Income [EUR]', categorical_columns, 10)
 for column in categorical_columns:
     sub_df.loc[:, column] = sub_df[column].map(target_mapping[column])
     sub_df[column].fillna(default_mapping[column], inplace=True)
@@ -117,6 +120,10 @@ model = lgb.train(params=params, train_set=train_data, num_boost_round=100000, v
 print('predicting Y...')
 y_pred = model.predict(X_test)
 
+# applying inverse power transform
+y_pred = np.exp(y_pred)
+y_test = np.exp(y_test)
+
 print("MAE: %.2f" % mean_absolute_error(y_test, y_pred))
 print("RMSE: %.2f" % np.sqrt(mean_squared_error(y_test, y_pred)))
 print('Variance score: %.2f' % r2_score(y_test, y_pred))
@@ -124,6 +131,9 @@ print('Variance score: %.2f' % r2_score(y_test, y_pred))
 ##################################################################################################################
 print('\nPredicting the output!')
 y_sub = model.predict(sub_df)
+
+# applying inverse power transform
+y_sub = np.exp(y_sub)
 
 print('creating final csv...')
 income = pd.DataFrame(y_sub, columns=['Total Yearly Income [EUR]'])
