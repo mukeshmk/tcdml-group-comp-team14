@@ -1,6 +1,8 @@
 # tcdml1920: Income Prediction Competition - Team 14
 Machine Learning Group Competition code as part of the 2019/20 Machine Learning module at Trinity College Dublin.
 
+#### Competition link -> [tcd-ml-comp-201920-income-pred-group](https://www.kaggle.com/c/tcd-ml-comp-201920-income-pred-group)
+
 Team14:  
 [Mukesh Arambakam](https://github.com/mukeshmk) - 19301497  
 [Ellen Mullooly](https://github.com/ellenmullooly) - 15320582  
